@@ -13,8 +13,6 @@ let controls;
 let camPersp;
 let activeCamera;
 
-
-
 const aspect = window.innerWidth / window.innerHeight;
 const frustumSize = 100;
 
@@ -46,9 +44,11 @@ const m1_test_texture = new THREE.MeshLambertMaterial({color:0xffffff, displacem
 let plane_ground;
 let test_cube, test_sphere;
 
-
 let terrain;
 let sky_dome;
+let moon;
+let corkOaks = [];
+let house;
 
 let ufo, main, cockpit, bulb_group, base_cylinder;
 let bulb1, bulb2, bulb3, bulb4, bulb5, bulb6, bulb7, bulb8;
@@ -57,6 +57,14 @@ let bulbs = [bulb1, bulb2, bulb3, bulb4, bulb5, bulb6, bulb7, bulb8];
 //Light vars
 let lightingEnabled = true;
 let ambient_light, hemisphere_light, directional_light, point_light, spot_light;
+
+let ufo_spotlight;
+let spotlightOn = true;
+
+let pointLightOn = true;
+let point_light1, point_light2, point_light3, point_light4,
+point_light5, point_light6, point_light7, point_light8;
+let ufo_pointlights = [point_light1, point_light2, point_light3, point_light4, point_light5, point_light6, point_light7, point_light8];
 
 /////////////////////
 /* CREATE SCENE(S) */
@@ -86,7 +94,7 @@ function createScene() {
 //////////////////////
 function createcamPersp() {
     camPersp = new THREE.PerspectiveCamera(70, aspect, 1, 1000);
-    camPersp.position.set(40, 40, 40);
+    camPersp.position.set(200, 200, 200);
     camPersp.lookAt(scene.position);
 }
 
@@ -99,30 +107,34 @@ stereoCamera.eyeSep = 0.064;
 /////////////////////
 function updateMaterials() {
   for (const [mesh, materials] of materialVariants.entries()) {
-    mesh.material.dispose(); // remove old material
-    mesh.material = materials[shadingMode];
-    mesh.material.needsUpdate = true;
-  }
+        if (mesh.material) {
+            mesh.material.dispose(); // Clean up old material
+        }
+        
+        // Select material based on current shading mode
+        mesh.material = materials[shadingMode];
+        mesh.material.needsUpdate = true;
+        
+        // Force lighting recalculation
+        if (mesh.material.lights !== undefined) {
+            mesh.material.lights = lightingEnabled;
+        }
+        
+    }
 }
 
+// Helper function to create material variants for any color
+function createMaterialVariants(color, options = {}) {
+    const lambert = new THREE.MeshLambertMaterial({color, ...options});
+    const phong = new THREE.MeshPhongMaterial({color, ...options});
+    const toon = new THREE.MeshToonMaterial({color, ...options});
+    return [lambert, phong, toon];
+}
 
 /////////////////////
 /* CREATE LIGHT(S) */
 /////////////////////
-function createAmbientLight(c, inten){
-    const color = c;
-    const intensity = inten;
-    const light = new THREE.AmbientLight(color, intensity);
-    return light;
-}
 
-function createHemisphereLight(sky, ground, inten){
-    const skycolor = sky;
-    const groundcolor = ground;
-    const intensity = inten;
-    const light = new THREE.HemisphereLight(skycolor, groundcolor, intensity);
-    return light;
-}
 
 function createDirectionalLight(c, inten){
     const light = new THREE.DirectionalLight(c, inten);
@@ -134,8 +146,8 @@ function createPointLight(c, inten){
     return light;
 }
 
-function createSpotLight(c, inten){
-    const light = new THREE.SpotLight(c, inten);
+function createSpotLight(c, inten, dist, angle, penumbra){
+    const light = new THREE.SpotLight(c, inten, dist,angle, penumbra);
     return light;
 }
 
@@ -157,7 +169,7 @@ function generateFlowerFieldTexture(width, height){
     const ctx = canvas.getContext('2d');
 
     // Fundo verde-claro
-    ctx.fillStyle = '#a8d5a2';
+    ctx.fillStyle = '#006400';
     ctx.fillRect(0, 0, width, height);
 
     // Cores possíveis das flores
@@ -181,7 +193,6 @@ function generateFlowerFieldTexture(width, height){
     texture.needsUpdate = true;
     return texture;
 }
-
 
 function generateLambertTerrainMaterial(fieldTexture, heightMapPath, displaceMultiplier) {
     const heightMap = new THREE.TextureLoader().load(heightMapPath);
@@ -216,11 +227,10 @@ function generateToonTerrainMaterial(fieldTexture, heightMapPath, displaceMultip
     });
 }
 
-
 function generateTerrainField(){
     const flowerFieldTexture = generateFlowerFieldTexture(2048, 2048);
     const heightMapPath = '/textures/heightmap2.png';
-    const displaceMultiplier = 40;
+    const displaceMultiplier = 15;
 
     const lambert = generateLambertTerrainMaterial(flowerFieldTexture, heightMapPath, displaceMultiplier);
     const phong   = generatePhongTerrainMaterial(flowerFieldTexture, heightMapPath, displaceMultiplier);
@@ -286,7 +296,6 @@ function generateSkyDome(){
     return skydome_res;
 }
 
-
 ////////////////////////
 /* CREATE OBJECT3D(S) */
 ////////////////////////
@@ -329,7 +338,7 @@ function createDome(r, wSegments, hSegments, mat){
 function createUFO(main_mat, cockpit_mat, bulb_mat, base_mat){
     ufo = new THREE.Group();
 
-    main = createSphere(10, 32, 16, main_mat);
+    main = createSphere(10, 15, 5, main_mat);
     main.scale.y = 0.2;
     ufo.add(main);
 
@@ -343,6 +352,8 @@ function createUFO(main_mat, cockpit_mat, bulb_mat, base_mat){
 
     //bulbs creation
     bulb_group = new THREE.Group();
+    ufo_pointlights = [];
+
     for(let i = 0; i < 8; i++){
         const angle = i * (Math.PI * 2 / 8);
         const x = 5 * Math.cos(angle);
@@ -351,10 +362,23 @@ function createUFO(main_mat, cockpit_mat, bulb_mat, base_mat){
         bulbs[i] = createSphere(0.4, 8, 8, bulb_mat);
         bulbs[i].position.set(x, -1.8, z);
         bulb_group.add(bulbs[i]);
+
+        ufo_pointlights[i] = createPointLight(0xffffff, 100);
+        ufo_pointlights[i].position.set(x, -3, z);
+        ufo_pointlights[i].visible = pointLightOn;
+        bulb_group.add(ufo_pointlights[i]);
     }
     ufo.add(bulb_group);
     
+    ufo_spotlight = createSpotLight(0xfffff, 20000, 200, Math.PI/5, 0);
+    ufo_spotlight.position.set(0,-2.5,0);
+    ufo_spotlight.target.position.set(0,-50,0);
+    ufo_spotlight.visible = spotlightOn;
 
+    ufo.add(ufo_spotlight);
+    ufo.add(ufo_spotlight.target);
+
+    ufo.scale.set(2,2,2);
 }
 
 function InitUFO(){
@@ -389,8 +413,264 @@ function InitUFO(){
     }
 
     materialVariants.set(base_cylinder, baseMatList);
+}
+
+function toggleUFOPointLights() {
+    pointLightOn = !pointLightOn;
     
+    for(let light of ufo_pointlights){
+        light.visible = pointLightOn;
+    }
+}
+
+function toggleUFOSpotlight() {
+    spotlightOn = !spotlightOn;
     
+    if (ufo_spotlight) {
+        ufo_spotlight.visible = spotlightOn;
+    }
+}
+
+const UFO_ROTATION_SPEED = 0.02; // radians per frame
+const UFO_MOVE_SPEED = 0.5; // units per frame
+let ufoVelocity = new THREE.Vector3(0, 0, 0);
+function updateUFOMovement() {
+    if (!ufo) return;
+    
+    // Reset velocity
+    ufoVelocity.set(0, 0, 0);
+    
+    // Check arrow keys and accumulate velocity
+    if (keysHeld['ArrowUp']) {
+        ufoVelocity.z -= UFO_MOVE_SPEED;
+    }
+    if (keysHeld['ArrowDown']) {
+        ufoVelocity.z += UFO_MOVE_SPEED;
+    }
+    if (keysHeld['ArrowLeft']) {
+        ufoVelocity.x -= UFO_MOVE_SPEED;
+    }
+    if (keysHeld['ArrowRight']) {
+        ufoVelocity.x += UFO_MOVE_SPEED;
+    }
+    
+    // Normalize diagonal movement to maintain constant speed
+    if (ufoVelocity.length() > 0) {
+        if (ufoVelocity.length() > UFO_MOVE_SPEED) {
+            ufoVelocity.normalize().multiplyScalar(UFO_MOVE_SPEED);
+        }
+        
+        // Apply movement to UFO position
+        ufo.position.add(ufoVelocity);
+    }
+}
+
+/////////////////
+/* CREATE MOON */
+/////////////////
+function createMoon() {
+    const moonGeo = new THREE.SphereGeometry(20, 32, 32);
+    
+    // Create material variants for the moon
+    const moonMatList = createMaterialVariants(0xc9c9c9, { 
+        emissive: 0xc9c9c9, 
+        emissiveIntensity: 10 
+    });
+    
+    moon = new THREE.Mesh(moonGeo, moonMatList[shadingMode]);
+    moon.position.set(0, 150, -250);
+    materialVariants.set(moon, moonMatList);
+    scene.add(moon);
+}
+
+/////////////////////////////
+/* CREATE AND SCATTER OAKS */
+/////////////////////////////
+function createCorkOak(scale) {
+    const group = new THREE.Group();
+
+    // Create material variants for bark
+    const barkMatList = createMaterialVariants(0xd47d30);
+    
+    // Create material variants for canopy
+    const canopyMatList = createMaterialVariants(0x085a12);
+
+    // trunk – slight tilt (≈ 8°)
+    const trunkGeo = new THREE.CylinderGeometry(1.6 * scale, 2 * scale, 10 * scale, 16);
+    const trunk = new THREE.Mesh(trunkGeo, barkMatList[shadingMode]);
+    trunk.position.y = 5 * scale;
+    trunk.rotation.z = THREE.MathUtils.degToRad(8);
+    group.add(trunk);
+    materialVariants.set(trunk, barkMatList);
+
+    // secondary branch – opposite tilt (≈ 25°)
+    const branchGeo = new THREE.CylinderGeometry(0.8 * scale, 1 * scale, 6 * scale, 12);
+    const branch = new THREE.Mesh(branchGeo, barkMatList[shadingMode]);
+    branch.position.set(0, 8 * scale, 0);
+    branch.rotation.z = THREE.MathUtils.degToRad(-25);
+    branch.position.x = Math.sin(branch.rotation.z) * 3 * scale;
+    group.add(branch);
+    materialVariants.set(branch, barkMatList);
+
+    // canopy – 2 – 3 dark-green ellipsoids
+    const blobs = THREE.MathUtils.randInt(2, 3);
+    for (let i = 0; i < blobs; i++) {
+        const blobGeo = new THREE.SphereGeometry(4 * scale, 24, 24);
+        const blob = new THREE.Mesh(blobGeo, canopyMatList[shadingMode]);
+        blob.scale.y = 0.7 + Math.random() * 0.3;                 // ellipsoid
+        blob.position.set(
+            THREE.MathUtils.randFloatSpread(2 * scale),
+            10 * scale + THREE.MathUtils.randFloat(1, 3) * scale,
+            THREE.MathUtils.randFloatSpread(2 * scale)
+        );
+        group.add(blob);
+        materialVariants.set(blob, canopyMatList);
+    }
+    return group;
+}
+
+function scatterCorkOaks(n) {
+    const ray  = new THREE.Raycaster();
+    const down = new THREE.Vector3(0, -1, 0);
+
+    /* 1.  Compute a safe placement rectangle from the terrain's bounding box
+           (10 % margin all around, so trunks never overhang an edge).     */
+    const tBox  = new THREE.Box3().setFromObject(terrain);
+    const width = tBox.max.x - tBox.min.x + 300;
+    const depth = tBox.max.z - tBox.min.z + 300;
+
+    const minX = tBox.min.x + width  * 0.10;
+    const maxX = tBox.max.x - width  * 0.10;
+    const minZ = tBox.min.z + depth  * 0.10;
+    const maxZ = tBox.max.z - depth  * 0.10;
+
+    /* 2.  Create and place the trees   */
+    for (let i = 0; i < n; i++) {
+        const scale = THREE.MathUtils.randFloat(0.8, 1.4);
+        const oak   = createCorkOak(scale);
+
+        const x = THREE.MathUtils.randFloat(minX, maxX);
+        const z = THREE.MathUtils.randFloat(minZ, maxZ);
+
+        // Cast ray from well above the terrain to find intersection point
+        ray.set(new THREE.Vector3(x, tBox.max.y + 10, z), down);
+        
+        // Intersect with the terrain mesh (not just bounding box)
+        const intersections = ray.intersectObject(terrain, true);
+
+        let groundY = tBox.min.y; // fallback to lowest point
+        
+        if (intersections.length > 0) {
+            // Use the first (topmost) intersection point
+            groundY = intersections[0].point.y;
+        }
+
+        // Position the tree at the correct height on the mesh surface
+        oak.position.set(x, groundY, z);
+        oak.rotation.y = THREE.MathUtils.randFloat(0, Math.PI * 2);
+        scene.add(oak);
+
+        /* 3.  Safety correction: if the tilted trunk still pokes below the surface
+               (can happen on steep slopes), raise the whole group just enough.     */
+        oak.updateWorldMatrix(true, false);                 
+        const oBox = new THREE.Box3().setFromObject(oak);   
+        const bury = groundY - oBox.min.y;                  
+        if (bury > 0) oak.position.y += bury;
+
+        corkOaks.push(oak);
+    }
+}
+
+//////////////////
+/* CREATE HOUSE */
+//////////////////
+function createCasaAlentejana() {
+    const g = new THREE.Group();
+
+    // dimensions (in scene units) 
+    const W = 70, D = 40, H = 25, roofH = 14, over = 1.5; // overhang
+
+    // Create material variants for different parts of the house
+    const wallMatList = createMaterialVariants(0xffffff);
+    const stripeMatList = createMaterialVariants(0x0060ff);
+    const roofMatList = createMaterialVariants(0x8b4a2d);
+    const doorWinMatList = createMaterialVariants(0x0060ff);
+
+    // Current materials based on shading mode
+    const wallMat = wallMatList[shadingMode];
+    const stripeMat = stripeMatList[shadingMode];
+    const roofMat = roofMatList[shadingMode];
+    const doorWinMat = doorWinMatList[shadingMode];
+
+    // helper to flip planes outwards and register materials
+    function wallPlane(w, h, px, py, pz, ry = 0, materialList = wallMatList) {
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), materialList[shadingMode]);
+        m.position.set(px, py, pz);
+        m.rotation.y = ry;
+        m.castShadow = m.receiveShadow = true;
+        g.add(m);
+        
+        // Register material variants for this mesh
+        materialVariants.set(m, materialList);
+        
+        return m;
+    }
+
+    //  1. walls (only the visible faces)
+    // front & back
+    wallPlane(W, H, 0, H * 0.5,  D * 0.5);
+    wallPlane(W, H, 0, H * 0.5, -D * 0.5, Math.PI);
+    // sides
+    wallPlane(D, H, -W * 0.5, H * 0.5, 0, -Math.PI * 0.5);
+    wallPlane(D, H,  W * 0.5, H * 0.5, 0,  Math.PI * 0.5);
+
+    // 2. blue skirting stripe (rodapé) - using stripe materials
+    wallPlane(W, H * 0.15, 0, H * 0.15 * 0.5,  D * 0.5 + 0.01, 0, stripeMatList);
+    wallPlane(W, H * 0.15, 0, H * 0.15 * 0.5, -D * 0.5 - 0.01, Math.PI, stripeMatList);
+    wallPlane(D, H * 0.15, -W * 0.5 - 0.01, H * 0.15 * 0.5, 0, -Math.PI * 0.5, stripeMatList);
+    wallPlane(D, H * 0.15,  W * 0.5 + 0.01, H * 0.15 * 0.5, 0,  Math.PI * 0.5, stripeMatList);
+
+    //  3. door & windows (simply coloured planes) 
+    const doorW = W * 0.15, doorH = H * 0.67;
+    const door = new THREE.Mesh(new THREE.PlaneGeometry(doorW, doorH), doorWinMatList[shadingMode]);
+    door.position.set(0, doorH * 0.5, D * 0.5 + 0.02);
+    g.add(door);
+    materialVariants.set(door, doorWinMatList);
+
+    const winSize = W * 0.10;                
+    const winGeo = new THREE.PlaneGeometry(winSize, winSize);
+    const winY = H * 0.70;               
+    const w1 = new THREE.Mesh(winGeo, doorWinMatList[shadingMode]);
+    w1.position.set(-W * 0.35, winY, D * 0.5 + 0.02);   
+    materialVariants.set(w1, doorWinMatList);
+    
+    const w2 = new THREE.Mesh(winGeo, doorWinMatList[shadingMode]);
+    w2.position.set(W * 0.35, winY, D * 0.5 + 0.02);
+    materialVariants.set(w2, doorWinMatList);
+    
+    g.add(w1, w2);
+
+    //  4. simple pitched roof (triangular prism) 
+    const roofGeom = new THREE.BufferGeometry();
+    const hw = W * 0.5 + over, hd = D * 0.5 + over;
+    const verts = new Float32Array([
+        -hw, H,  hd,   hw, H,  hd,    0, H + roofH,  hd,   // front triangle
+        -hw, H, -hd,   hw, H, -hd,    0, H + roofH, -hd   // back triangle
+    ]);
+    const idx = [
+        0,1,2,   3,5,4,    // front & back
+        0,2,3,   3,2,5,    // left roof face
+        1,4,2,   2,4,5     // right roof face
+    ];
+    roofGeom.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+    roofGeom.setIndex(idx);
+    roofGeom.computeVertexNormals();
+    const roof = new THREE.Mesh(roofGeom, roofMatList[shadingMode]);
+    g.add(roof);
+    materialVariants.set(roof, roofMatList);
+
+    // 5. tidy up 
+    return g;
 }
 
 //////////////////////
@@ -409,6 +689,15 @@ function handleCollisions() {}
 function update() {
 
     controls.update();
+
+
+    // UFO continuous rotation around its Y axis
+    if (ufo) {
+        ufo.rotation.y += UFO_ROTATION_SPEED;
+    }
+    
+    // UFO horizontal movement based on arrow keys
+    updateUFOMovement();
 }
 
 /////////////
@@ -447,32 +736,34 @@ function initObjects(){
     scene.add(sky_dome);
 
     InitUFO();
-    ufo.position.set(0,30,0);
+    ufo.position.set(0,60,0);
     scene.add(ufo);
 
-
-    test_cube = createCube(10, 10, 10, m3);
-    test_cube.position.set(10, 25, -30);
-    scene.add(test_cube);
-
-    test_sphere = createSphere(5, 20, 20, m1);
-    test_sphere.position.set(-30, 10, 0);
-    scene.add(test_sphere);
-
-    //ambient_light = createAmbientLight(0xffffff, 2);
-    //scene.add(ambient_light);
     
-    //hemisphere_light = createHemisphereLight(0xB1E1FF, 0xB97A20, 6);
-    //scene.add(hemisphere_light);
+    
+    createMoon();
+    scatterCorkOaks(60);
+
+    house = createCasaAlentejana();
+    const hx = 0,  hz = -80;
+    const ray = new THREE.Raycaster(new THREE.Vector3(hx, 500, hz), new THREE.Vector3(0, -1, 0));
+    const hit      = ray.intersectObject(terrain, true);
+    const groundY  = hit.length ? hit[0].point.y : 0;
+    house.position.set(hx, groundY, hz);
+    const hBox = new THREE.Box3().setFromObject(house);
+    house.position.y += (groundY - hBox.min.y);
+    scene.add(house);
+
 
     directional_light = createDirectionalLight(0xffffff, 1.5);
-    directional_light.position.set(0,10,0);
+    directional_light.position.set(0, 150, -250);
     directional_light.target.position.set(5,0,-5);
+
 
     scene.add(directional_light);
     scene.add(directional_light.target);
 
-    point_light = createPointLight(0xB97A20, 800);
+    /*point_light = createPointLight(0xB97A20, 800);
     point_light.position.set(10,15,-30);
     scene.add(point_light);
 
@@ -481,28 +772,12 @@ function initObjects(){
     spot_light.target.position.set(-10,0, 20);
     scene.add(spot_light);
     scene.add(spot_light.target);
+    */
 
-    
-    //Add all meshes materials to a set to be updated
-    const cubeMaterials = [
-    new THREE.MeshLambertMaterial({ color: 0x00ff00 }),  // Gouraud
-    new THREE.MeshPhongMaterial({ color: 0x00ff00 }),    // Phong
-    new THREE.MeshToonMaterial({ color: 0x00ff00 })      // Cartoon
-    ];
-    test_cube.material = cubeMaterials[0];
-    materialVariants.set(test_cube, cubeMaterials);
-
-    const sphereMaterials = [
-    new THREE.MeshLambertMaterial({ color: 0xff0000 }),
-    new THREE.MeshPhongMaterial({ color: 0xff0000 }),
-    new THREE.MeshToonMaterial({ color: 0xff0000 })
-    ];
-    test_sphere.material = sphereMaterials[0];
-    materialVariants.set(test_sphere, sphereMaterials);
     ////
 
     //Initialize meshes materials mode
-    shadingMode = 2;
+    /*shadingMode = 2;
     updateMaterials();
 
     //Light helpers
@@ -512,9 +787,9 @@ function initObjects(){
     const helperPoi = new THREE.PointLightHelper(point_light);
     scene.add(helperPoi);
 
-    const helperSpot = new THREE.SpotLightHelper(spot_light);
+    const helperSpot = new THREE.SpotLightHelper(ufo_spotlight);
     scene.add(helperSpot);
-    
+    */
 }
 
 ////////////////////////////////
@@ -549,6 +824,9 @@ function init() {
     window.addEventListener('keyup',   onKeyUp,   false);
     window.addEventListener('resize',  onResize,  false);
 }
+
+
+
 
 /////////////////////
 /* ANIMATION CYCLE */
@@ -606,6 +884,11 @@ function onKeyDown(e) {
             }
             break;
         case '7': activeCamera = camPersp; controls.target.set(0, 0, 0); break;
+
+        case 'D':
+        case 'd':
+            if (directional_light) directional_light.visible = !directional_light.visible; break;
+        
         case 'q':
         case 'Q':
             shadingMode = 0; // Gouraud
@@ -628,6 +911,14 @@ function onKeyDown(e) {
         case 'R':
             lightingEnabled = !lightingEnabled;
             toggleLighting(lightingEnabled);
+            break;
+        case 's':
+        case 'S':
+            toggleUFOSpotlight();
+            break;
+        case 'p':
+        case 'P':
+            toggleUFOPointLights();
             break;
         default: break;
     }
