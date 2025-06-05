@@ -32,6 +32,7 @@ const color_base_cylinder = {color:0xeeef};
 //Material vars
 const materialVariants = new Map();
 let shadingMode = 0;
+let previous_shadingMode = 0;
 
 //Object vars
 let terrain;
@@ -46,7 +47,7 @@ let bulbs = [bulb1, bulb2, bulb3, bulb4, bulb5, bulb6, bulb7, bulb8];
 
 //Light vars
 let lightingEnabled = true;
-let directional_light, point_light, spot_light;
+let directional_light, spot_light;
 
 let ufo_spotlight;
 let spotlightOn = true;
@@ -105,7 +106,8 @@ function createMaterialVariants(color, options = {}) {
     const lambert = new THREE.MeshLambertMaterial({color, ...options});
     const phong = new THREE.MeshPhongMaterial({color, ...options});
     const toon = new THREE.MeshToonMaterial({color, ...options});
-    return [lambert, phong, toon];
+    const basic = new THREE.MeshBasicMaterial({color, ...options});
+    return [lambert, phong, toon, basic];
 }
 
 /////////////////////
@@ -130,8 +132,7 @@ function createSpotLight(c, inten, dist, angle, penumbra){
 
 function toggleLighting(enabled) {
     directional_light.visible = enabled;
-    point_light.visible = enabled;
-    spot_light.visible = enabled;
+    //spot_light.visible = enabled;
 
     updateMaterials();
 }
@@ -200,6 +201,13 @@ function generateToonTerrainMaterial(fieldTexture, heightMapPath, displaceMultip
     });
 }
 
+function generateBasicTerrainMaterial(fieldTexture) {
+
+    return new THREE.MeshBasicMaterial({
+        map: fieldTexture
+    });
+}
+
 function generateTerrainField(){
     const flowerFieldTexture = generateFlowerFieldTexture(2048, 2048);
     const heightMapPath = '/textures/heightmap2.png';
@@ -208,8 +216,9 @@ function generateTerrainField(){
     const lambert = generateLambertTerrainMaterial(flowerFieldTexture, heightMapPath, displaceMultiplier);
     const phong   = generatePhongTerrainMaterial(flowerFieldTexture, heightMapPath, displaceMultiplier);
     const toon    = generateToonTerrainMaterial(flowerFieldTexture, heightMapPath, displaceMultiplier);
+    const basic    = generateBasicTerrainMaterial(flowerFieldTexture);
 
-    const matList = [lambert, phong, toon];
+    const matList = [lambert, phong, toon, basic];
 
     const terrainMesh = createPlane(700, 700, 50, 50, matList[shadingMode]);
     terrainMesh.rotateX(-Math.PI / 2);
@@ -259,7 +268,7 @@ function generateSkyDome(){
     const phong   = new THREE.MeshPhongMaterial({map:skyTexture, side:THREE.BackSide});
     const toon    = new THREE.MeshToonMaterial({map:skyTexture, side:THREE.BackSide});
 
-    const matList = [lambert, phong, toon];
+    const matList = [lambert, phong, toon, skyMaterial];
 
     const skydome_res = createDome(300, 30, 30, skyMaterial);
     materialVariants.set(skydome_res, matList);
@@ -333,7 +342,7 @@ function createUFO(main_mat, cockpit_mat, bulb_mat, base_mat){
         bulbs[i].position.set(x, -1.8, z);
         bulb_group.add(bulbs[i]);
 
-        ufo_pointlights[i] = createPointLight(0xffffff, 100);
+        ufo_pointlights[i] = createPointLight(0xffffff, 1000);
         ufo_pointlights[i].position.set(x, -3, z);
         ufo_pointlights[i].visible = pointLightOn;
         bulb_group.add(ufo_pointlights[i]);
@@ -355,23 +364,27 @@ function InitUFO(){
     const mainLambert = new THREE.MeshLambertMaterial(color_main); // light blue
     const mainPhong   = new THREE.MeshPhongMaterial(color_main);
     const mainToon    = new THREE.MeshToonMaterial(color_main);
+    const mainBasic    = new THREE.MeshBasicMaterial(color_main);
 
     const cockpitLambert = new THREE.MeshLambertMaterial(color_cockpit); // cyan
     const cockpitPhong   = new THREE.MeshPhongMaterial(color_cockpit);
     const cockpitToon    = new THREE.MeshToonMaterial(color_cockpit);
+    const cockpitBasic    = new THREE.MeshBasicMaterial(color_cockpit);
 
     const bulbLambert = new THREE.MeshLambertMaterial(color_bulb_light); // cyan
     const bulbPhong   = new THREE.MeshPhongMaterial(color_bulb_light);
     const bulbToon    = new THREE.MeshToonMaterial(color_bulb_light);
+    const bulbBasic    = new THREE.MeshBasicMaterial(color_bulb_light);
 
     const baseLambert = new THREE.MeshLambertMaterial(color_base_cylinder); // cyan
     const basePhong   = new THREE.MeshPhongMaterial(color_base_cylinder);
     const baseToon    = new THREE.MeshToonMaterial(color_base_cylinder);
+    const baseBasic    = new THREE.MeshBasicMaterial(color_base_cylinder);
 
-    const mainMatList = [mainLambert, mainPhong, mainToon];
-    const cockpitMatList = [cockpitLambert, cockpitPhong, cockpitToon];
-    const bulbMatList = [bulbLambert, bulbPhong, bulbToon];
-    const baseMatList = [baseLambert, basePhong, baseToon];
+    const mainMatList = [mainLambert, mainPhong, mainToon, mainBasic];
+    const cockpitMatList = [cockpitLambert, cockpitPhong, cockpitToon, cockpitBasic];
+    const bulbMatList = [bulbLambert, bulbPhong, bulbToon, bulbBasic];
+    const baseMatList = [baseLambert, basePhong, baseToon, baseBasic];
 
     createUFO(mainMatList[shadingMode], cockpitMatList[shadingMode], bulbMatList[shadingMode], baseMatList[shadingMode]);
 
@@ -401,8 +414,8 @@ function toggleUFOSpotlight() {
     }
 }
 
-const UFO_ROTATION_SPEED = 0.02; // radians per frame
-const UFO_MOVE_SPEED = 0.5; // units per frame
+const ufo_rotation_spped = 0.02; // radians per frame
+const ufo_move_speed = 0.5; // units per frame
 let ufoVelocity = new THREE.Vector3(0, 0, 0);
 function updateUFOMovement() {
     if (!ufo) return;
@@ -412,22 +425,22 @@ function updateUFOMovement() {
     
     // Check arrow keys and accumulate velocity
     if (keysHeld['ArrowUp']) {
-        ufoVelocity.z -= UFO_MOVE_SPEED;
+        ufoVelocity.z -= ufo_move_speed;
     }
     if (keysHeld['ArrowDown']) {
-        ufoVelocity.z += UFO_MOVE_SPEED;
+        ufoVelocity.z += ufo_move_speed;
     }
     if (keysHeld['ArrowLeft']) {
-        ufoVelocity.x -= UFO_MOVE_SPEED;
+        ufoVelocity.x -= ufo_move_speed;
     }
     if (keysHeld['ArrowRight']) {
-        ufoVelocity.x += UFO_MOVE_SPEED;
+        ufoVelocity.x += ufo_move_speed;
     }
     
     // Normalize diagonal movement to maintain constant speed
     if (ufoVelocity.length() > 0) {
-        if (ufoVelocity.length() > UFO_MOVE_SPEED) {
-            ufoVelocity.normalize().multiplyScalar(UFO_MOVE_SPEED);
+        if (ufoVelocity.length() > ufo_move_speed) {
+            ufoVelocity.normalize().multiplyScalar(ufo_move_speed);
         }
         
         ufo.position.add(ufoVelocity);
@@ -441,10 +454,12 @@ function createMoon() {
     const moonGeo = new THREE.SphereGeometry(20, 32, 32);
     
     //Create material variants for the moon
-    const moonMatList = createMaterialVariants(0xc9c9c9, { 
-        emissive: 0xc9c9c9, 
-        emissiveIntensity: 10 
-    });
+    const lambert = new THREE.MeshLambertMaterial({emissive: 0xc9c9c9, emissiveIntensity: 10});
+    const phong = new THREE.MeshPhongMaterial({emissive: 0xc9c9c9, emissiveIntensity: 10});
+    const toon = new THREE.MeshToonMaterial({emissive: 0xc9c9c9, emissiveIntensity: 10});
+    const basic = new THREE.MeshBasicMaterial({color:0xc9c9c9});
+
+    const moonMatList = [lambert, phong, toon, basic];
     
     moon = new THREE.Mesh(moonGeo, moonMatList[shadingMode]);
     moon.position.set(0, 150, -250);
@@ -632,10 +647,10 @@ function handleCollisions() {}
 ////////////
 function update() {
 
-    controls.update();
+    //controls.update();
 
     if (ufo) {
-        ufo.rotation.y += UFO_ROTATION_SPEED;
+        ufo.rotation.y += ufo_rotation_spped;
     }
     
     updateUFOMovement();
@@ -723,14 +738,13 @@ function init() {
     document.body.appendChild(VRButton.createButton(renderer));
 
     // Add OrbitControls
-    controls = new OrbitControls(camPersp, renderer.domElement);
-    controls.target.set(0, 0, 0);  // Point camera toward the origin
+    //controls = new OrbitControls(camPersp, renderer.domElement);
+    //controls.target.set(0, 0, 0);  // Point camera toward the origin
     
     //initialize camera
     activeCamera = camPersp;
 
-    initObjects();
-    
+    initObjects();  
 
     //event listenners
     window.addEventListener('keydown', onKeyDown, false);
@@ -796,7 +810,9 @@ function onKeyDown(e) {
                 sky_dome.material.needsUpdate = true;
             }
             break;
-        case '7': activeCamera = camPersp; controls.target.set(0, 0, 0); break;
+        case '7': 
+            activeCamera = camPersp; //controls.target.set(0, 0, 0); 
+            break;
 
         case 'D':
         case 'd':
@@ -804,25 +820,49 @@ function onKeyDown(e) {
         
         case 'q':
         case 'Q':
-            shadingMode = 0; // Gouraud
-            updateMaterials();
+            if(lightingEnabled == true){
+                shadingMode = 0; // Gouraud
+                previous_shadingMode = 0;
+                updateMaterials();
+            }else{
+                shadingMode = 0;
+                previous_shadingMode = 0;
+            }
             break;
 
         case 'w':
         case 'W':
-            shadingMode = 1; // Phong
-            updateMaterials();
+            if(lightingEnabled == true){
+                shadingMode = 1; // Phong
+                previous_shadingMode = 1;
+                updateMaterials();
+            }else{
+                shadingMode = 1;
+                previous_shadingMode = 1;
+            }
             break;
 
         case 'e':
         case 'E':
-            shadingMode = 2; // Toon
-            updateMaterials();
+            if(lightingEnabled == true){
+                shadingMode = 2; // Toon
+                previous_shadingMode = 2;
+                updateMaterials();
+            }else{
+                shadingMode = 2;
+                previous_shadingMode = 2;
+            }
             break;
 
         case 'r':
         case 'R':
             lightingEnabled = !lightingEnabled;
+            if(lightingEnabled == false){
+                shadingMode = 3; //basic shading
+                updateMaterials();
+            }else{
+                shadingMode = previous_shadingMode;
+            }
             toggleLighting(lightingEnabled);
             break;
         case 's':
