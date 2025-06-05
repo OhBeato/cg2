@@ -512,7 +512,6 @@ function scatterCorkOaks(n) {
     const ray  = new THREE.Raycaster();
     const down = new THREE.Vector3(0, -1, 0);
 
-
     const tBox  = new THREE.Box3().setFromObject(terrain);
     const width = tBox.max.x - tBox.min.x + 300;
     const depth = tBox.max.z - tBox.min.z + 300;
@@ -543,7 +542,6 @@ function scatterCorkOaks(n) {
         oak.rotation.y = THREE.MathUtils.randFloat(0, Math.PI * 2);
         scene.add(oak);
 
-
         oak.updateWorldMatrix(true, false);                 
         const oBox = new THREE.Box3().setFromObject(oak);   
         const bury = groundY - oBox.min.y;                  
@@ -556,10 +554,10 @@ function scatterCorkOaks(n) {
 //////////////////
 /* CREATE HOUSE */
 //////////////////
-function createCasaAlentejana() {
-    const g = new THREE.Group();
+function createHouse() {
+    const group = new THREE.Group();
 
-    const W = 70, D = 40, H = 25, roofH = 14, over = 1.5; 
+    const WIDTH = 70, LENGTH = 40, HEIGHT = 25, roofH = 14, over = 1.5; 
 
     const wallMatList = createMaterialVariants(0xffffff);
     const stripeMatList = createMaterialVariants(0x0060ff);
@@ -567,54 +565,55 @@ function createCasaAlentejana() {
     const doorWinMatList = createMaterialVariants(0x0060ff);
 
 
-    function wallPlane(w, h, px, py, pz, ry = 0, materialList = wallMatList) {
-        const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), materialList[shadingMode]);
-        m.position.set(px, py, pz);
-        m.rotation.y = ry;
-        m.castShadow = m.receiveShadow = true;
-        g.add(m);
+    function wallPlane(width, height, px, py, pz, ry = 0, materialList = wallMatList) {
+        const mat = new THREE.Mesh(new THREE.PlaneGeometry(width, height), materialList[shadingMode]);
+        mat.position.set(px, py, pz);
+        mat.rotation.y = ry;
+        mat.castShadow = mat.receiveShadow = true;
+        group.add(mat);
         
-        materialVariants.set(m, materialList);
+        materialVariants.set(mat, materialList);
         
-        return m;
+        return mat;
     }
 
     //front and back
-    wallPlane(W, H, 0, H * 0.5,  D * 0.5);
-    wallPlane(W, H, 0, H * 0.5, -D * 0.5, Math.PI);
-    //sides
-    wallPlane(D, H, -W * 0.5, H * 0.5, 0, -Math.PI * 0.5);
-    wallPlane(D, H,  W * 0.5, H * 0.5, 0,  Math.PI * 0.5);
+    wallPlane(WIDTH, HEIGHT, 0, HEIGHT * 0.5,  LENGTH * 0.5);
+    wallPlane(WIDTH, HEIGHT, 0, HEIGHT * 0.5, -LENGTH * 0.5, Math.PI);
 
-    wallPlane(W, H * 0.15, 0, H * 0.15 * 0.5,  D * 0.5 + 0.01, 0, stripeMatList);
-    wallPlane(W, H * 0.15, 0, H * 0.15 * 0.5, -D * 0.5 - 0.01, Math.PI, stripeMatList);
-    wallPlane(D, H * 0.15, -W * 0.5 - 0.01, H * 0.15 * 0.5, 0, -Math.PI * 0.5, stripeMatList);
-    wallPlane(D, H * 0.15,  W * 0.5 + 0.01, H * 0.15 * 0.5, 0,  Math.PI * 0.5, stripeMatList);
+    //sides
+    wallPlane(LENGTH, HEIGHT, -WIDTH * 0.5, HEIGHT * 0.5, 0, -Math.PI * 0.5);
+    wallPlane(LENGTH, HEIGHT,  WIDTH * 0.5, HEIGHT * 0.5, 0,  Math.PI * 0.5);
+
+    wallPlane(WIDTH, HEIGHT * 0.15, 0, HEIGHT * 0.15 * 0.5,  LENGTH * 0.5 + 0.01, 0, stripeMatList);
+    wallPlane(WIDTH, HEIGHT * 0.15, 0, HEIGHT * 0.15 * 0.5, -LENGTH * 0.5 - 0.01, Math.PI, stripeMatList);
+    wallPlane(LENGTH, HEIGHT * 0.15, -WIDTH * 0.5 - 0.01, HEIGHT * 0.15 * 0.5, 0, -Math.PI * 0.5, stripeMatList);
+    wallPlane(LENGTH, HEIGHT * 0.15,  WIDTH * 0.5 + 0.01, HEIGHT * 0.15 * 0.5, 0,  Math.PI * 0.5, stripeMatList);
  
-    const doorW = W * 0.15, doorH = H * 0.67;
+    const doorW = WIDTH * 0.15, doorH = HEIGHT * 0.67;
     const door = new THREE.Mesh(new THREE.PlaneGeometry(doorW, doorH), doorWinMatList[shadingMode]);
-    door.position.set(0, doorH * 0.5, D * 0.5 + 0.02);
-    g.add(door);
+    door.position.set(0, doorH * 0.5, LENGTH * 0.5 + 0.02);
+    group.add(door);
     materialVariants.set(door, doorWinMatList);
 
-    const winSize = W * 0.10;                
+    const winSize = WIDTH * 0.10;                
     const winGeo = new THREE.PlaneGeometry(winSize, winSize);
-    const winY = H * 0.70;               
+    const winY = HEIGHT * 0.70;               
     const w1 = new THREE.Mesh(winGeo, doorWinMatList[shadingMode]);
-    w1.position.set(-W * 0.35, winY, D * 0.5 + 0.02);   
+    w1.position.set(-WIDTH * 0.35, winY, LENGTH * 0.5 + 0.02);   
     materialVariants.set(w1, doorWinMatList);
     
     const w2 = new THREE.Mesh(winGeo, doorWinMatList[shadingMode]);
-    w2.position.set(W * 0.35, winY, D * 0.5 + 0.02);
+    w2.position.set(WIDTH * 0.35, winY, LENGTH * 0.5 + 0.02);
     materialVariants.set(w2, doorWinMatList);
     
-    g.add(w1, w2);
+    group.add(w1, w2);
 
     const roofGeom = new THREE.BufferGeometry();
-    const hw = W * 0.5 + over, hd = D * 0.5 + over;
+    const hw = WIDTH * 0.5 + over, hd = LENGTH * 0.5 + over;
     const verts = new Float32Array([
-        -hw, H,  hd,   hw, H,  hd,    0, H + roofH,  hd,   //front triangle
-        -hw, H, -hd,   hw, H, -hd,    0, H + roofH, -hd   //back triangle
+        -hw, HEIGHT,  hd,   hw, HEIGHT,  hd,    0, HEIGHT + roofH,  hd,   //front triangle
+        -hw, HEIGHT, -hd,   hw, HEIGHT, -hd,    0, HEIGHT + roofH, -hd   //back triangle
     ]);
     const idx = [
         0,1,2,   3,5,4,    //front and back
@@ -625,10 +624,10 @@ function createCasaAlentejana() {
     roofGeom.setIndex(idx);
     roofGeom.computeVertexNormals();
     const roof = new THREE.Mesh(roofGeom, roofMatList[shadingMode]);
-    g.add(roof);
+    group.add(roof);
     materialVariants.set(roof, roofMatList);
 
-    return g;
+    return group;
 }
 
 //////////////////////
@@ -694,12 +693,10 @@ function initObjects(){
     ufo.position.set(0,60,0);
     scene.add(ufo);
 
-    
-    
     createMoon();
     scatterCorkOaks(60);
 
-    house = createCasaAlentejana();
+    house = createHouse();
     const hx = 0,  hz = -80;
     const ray = new THREE.Raycaster(new THREE.Vector3(hx, 500, hz), new THREE.Vector3(0, -1, 0));
     const hit      = ray.intersectObject(terrain, true);
