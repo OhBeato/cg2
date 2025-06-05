@@ -270,7 +270,7 @@ function generateSkyDome(){
 
     const matList = [lambert, phong, toon, skyMaterial];
 
-    const skydome_res = createDome(300, 30, 30, skyMaterial);
+    const skydome_res = createDome(300, 30, 30, lambert);
     materialVariants.set(skydome_res, matList);
     return skydome_res;
 }
@@ -579,7 +579,7 @@ function createCasaAlentejana() {
         return m;
     }
 
-    //front & back
+    //front and back
     wallPlane(W, H, 0, H * 0.5,  D * 0.5);
     wallPlane(W, H, 0, H * 0.5, -D * 0.5, Math.PI);
     //sides
@@ -628,7 +628,6 @@ function createCasaAlentejana() {
     g.add(roof);
     materialVariants.set(roof, roofMatList);
 
-    // 5. tidy up 
     return g;
 }
 
