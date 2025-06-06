@@ -538,6 +538,7 @@ function scatterCorkOaks(n) {
             groundY = intersections[0].point.y;
         }
 
+        oak.position.y = Math.max(7, oak.position.y);
         oak.position.set(x, groundY, z);
         oak.rotation.y = THREE.MathUtils.randFloat(0, Math.PI * 2);
         scene.add(oak);
